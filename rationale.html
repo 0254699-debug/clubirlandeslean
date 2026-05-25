@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Club Irlandes — Design Rationale</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'DM Sans', 'Segoe UI', sans-serif; }
+    #root { min-height: 100vh; }
+    .loading { display: flex; align-items: center; justify-content: center; height: 100vh; background: #F5F7FA; }
+    .loading-text { font-size: 16px; color: #718096; }
+  </style>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div id="root"><div class="loading"><div class="loading-text">Loading Design Rationale...</div></div></div>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script type="text/babel" data-type="module">
+const { useState, useMemo, useCallback } = React;
+const C = {
+  dark:"#16192C",green:"#0D6B4E",greenL:"#E8F5E9",gold:"#E8A838",goldL:"#FFF8E7",
+  red:"#C0392B",redL:"#FFF5F5",blue:"#2C5282",blueL:"#EBF4FF",
+  white:"#FFF",light:"#F5F7FA",tx:"#1C1E2D",txM:"#4A5568",txL:"#718096",brd:"#E2E8F0",
+};
+
+const Badge = ({children,color="green"})=>{
+  const m={green:{b:C.greenL,c:C.green},gold:{b:C.goldL,c:C.gold},red:{b:C.redL,c:C.red},blue:{b:C.blueL,c:C.blue}};
+  const s=m[color]||m.green;
+  return <span style={{background:s.b,color:s.c,padding:"3px 12px",borderRadius:12,fontSize:11,fontWeight:600}}>{children}</span>;
+};
+
+/* ─── EXPANDABLE CARD ─── */
+function ExplainCard({icon,title,subtitle,leanPrinciple,leanColor,children,defaultOpen=false}) {
+  const [open,setOpen] = useState(defaultOpen);
+  return (
+    <div style={{background:C.white,borderRadius:12,border:`1px solid ${C.brd}`,marginBottom:12,overflow:"hidden",transition:"box-shadow 0.2s",boxShadow:open?"0 4px 20px rgba(0,0,0,0.08)":"none"}}>
+      <div onClick={()=>setOpen(!open)} style={{padding:"16px 20px",cursor:"pointer",display:"flex",alignItems:"center",gap:14,userSelect:"none"}}>
+        <span style={{fontSize:24,width:36,textAlign:"center",flexShrink:0}}>{icon}</span>
+        <div style={{flex:1}}>
+          <div style={{fontSize:15,fontWeight:600,color:C.tx}}>{title}</div>
+          {subtitle && <div style={{fontSize:12,color:C.txL,marginTop:2}}>{subtitle}</div>}
+        </div>
+        {leanPrinciple && <Badge color={leanColor||"green"}>{leanPrinciple}</Badge>}
+        <span style={{fontSize:18,color:C.txL,transform:open?"rotate(180deg)":"rotate(0)",transition:"transform 0.2s",flexShrink:0}}>▼</span>
+      </div>
+      {open && (
+        <div style={{padding:"0 20px 20px 70px",borderTop:`1px solid ${C.brd}22`}}>
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── SECTION HEADER ─── */
+function Section({number,title,subtitle,color=C.green}) {
+  return (
+    <div style={{marginTop:36,marginBottom:16}}>
+      <div style={{display:"flex",alignItems:"center",gap:12}}>
+        <div style={{width:36,height:36,borderRadius:8,background:color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:700,color:C.white}}>{number}</div>
+        <div>
+          <div style={{fontSize:22,fontWeight:700,color:C.tx}}>{title}</div>
+          <div style={{fontSize:13,color:C.txL}}>{subtitle}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── SUB-EXPLANATION ─── */
+function SubPoint({label,children}) {
+  return (
+    <div style={{marginTop:12}}>
+      <div style={{fontSize:12,fontWeight:600,color:C.green,textTransform:"uppercase",letterSpacing:0.5,marginBottom:4}}>{label}</div>
+      <div style={{fontSize:13,color:C.txM,lineHeight:1.7}}>{children}</div>
+    </div>
+  );
+}
+
+/* ─── CONNECTION BOX ─── */
+function ConnectionBox({presentation,essay,prototype}) {
+  return (
+    <div style={{marginTop:16,background:C.light,borderRadius:8,padding:14}}>
+      <div style={{fontSize:11,fontWeight:600,color:C.txL,textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>Where this appears</div>
+      <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+        {presentation && <span style={{background:C.blueL,color:C.blue,padding:"3px 10px",borderRadius:6,fontSize:11,fontWeight:500}}>📊 Presentation: {presentation}</span>}
+        {essay && <span style={{background:C.greenL,color:C.green,padding:"3px 10px",borderRadius:6,fontSize:11,fontWeight:500}}>📝 Essay: {essay}</span>}
+        {prototype && <span style={{background:C.goldL,color:"#B8860B",padding:"3px 10px",borderRadius:6,fontSize:11,fontWeight:500}}>💻 Prototype: {prototype}</span>}
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════
+   MAIN APP
+   ═══════════════════════════════════════════ */
+const AppComponent = function App() {
+  const [activeNav, setActiveNav] = useState("problem");
+
+  const navItems = [
+    {id:"problem",label:"Problem",icon:"🔍"},
+    {id:"framework",label:"3M Framework",icon:"🔧"},
+    {id:"solutions",label:"Solutions",icon:"💡"},
+    {id:"parameters",label:"Parameters",icon:"⚙️"},
+    {id:"interfaces",label:"Interfaces",icon:"📱"},
+    {id:"metrics",label:"Metrics",icon:"📊"},
+    {id:"implementation",label:"Implementation",icon:"🚀"},
+  ];
+
+  return (
+    <div style={{fontFamily:"'DM Sans','Segoe UI',sans-serif",background:C.light,minHeight:"100vh"}}>
+      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+
+      {/* Header */}
+      <div style={{background:C.dark,padding:"20px 24px"}}>
+        <div style={{maxWidth:860,margin:"0 auto"}}>
+          <div style={{fontSize:12,color:C.gold,fontWeight:600,letterSpacing:2,textTransform:"uppercase",marginBottom:6}}>Lean Manufacturing · Live Case Study</div>
+          <div style={{fontSize:26,fontWeight:700,color:C.white}}>Club Irlandes de Raqueta</div>
+          <div style={{fontSize:14,color:C.txL,marginTop:4}}>Design Rationale — Every decision explained and justified</div>
+          <div style={{fontSize:12,color:C.txL,marginTop:8}}>Pablo Romano · Emilio Aquino · Nicolas Crane · Universidad Panamericana · May 2026</div>
+        </div>
+      </div>
+
+      {/* Navigation */}
+      <div style={{background:C.white,borderBottom:`1px solid ${C.brd}`,position:"sticky",top:0,zIndex:10}}>
+        <div style={{maxWidth:860,margin:"0 auto",display:"flex",gap:0,overflowX:"auto"}}>
+          {navItems.map(n=>(
+            <button key={n.id} onClick={()=>{setActiveNav(n.id);document.getElementById(n.id)?.scrollIntoView({behavior:"smooth",block:"start"})}}
+              style={{padding:"10px 14px",border:"none",background:"none",cursor:"pointer",fontSize:12,fontWeight:activeNav===n.id?600:400,color:activeNav===n.id?C.green:C.txL,borderBottom:activeNav===n.id?`2px solid ${C.green}`:"2px solid transparent",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:5}}>
+              <span>{n.icon}</span>{n.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Content */}
+      <div style={{maxWidth:860,margin:"0 auto",padding:"0 20px 60px"}}>
+
+        {/* ═══ INTRO ═══ */}
+        <div style={{marginTop:24,background:C.white,borderRadius:12,border:`1px solid ${C.brd}`,padding:24}}>
+          <div style={{fontSize:16,fontWeight:700,color:C.tx,marginBottom:8}}>How to use this document</div>
+          <div style={{fontSize:13,color:C.txM,lineHeight:1.7}}>
+            This companion site explains every design decision behind the proposed digital reservation system for Club Irlandes de Raqueta. Each section is expandable — click any card to reveal the full reasoning, the lean principle that justifies it, and where it appears across the essay, presentation, and interactive prototype. Nothing in this system is arbitrary; every parameter, rule, and interface element exists to solve a specific waste identified through the 3M framework.
+          </div>
+        </div>
+
+        {/* ═══ SECTION 1: THE PROBLEM ═══ */}
+        <div id="problem">
+          <Section number="1" title="The Problem" subtitle="What we observed at Club Irlandes" color={C.red}/>
+        </div>
+
+        <ExplainCard icon="🎾" title="Club Irlandes de Raqueta" subtitle="Private membership tennis club, State of Mexico" defaultOpen={true}>
+          <SubPoint label="The club">
+            Club Irlandes is a private, membership-based tennis club with 21 courts operating from 6:00 AM to 10:00 PM daily (16 hours). This gives a theoretical maximum capacity of 336 one-hour reservation slots per day. The club also offers padel and other recreational activities, but this analysis focuses exclusively on tennis court operations.
+          </SubPoint>
+          <SubPoint label="The current system">
+            Reservations are managed entirely in person, using a physical notebook at a control desk staffed by a tennis coach. Members must physically walk to the desk to check availability, make a booking, or enquire about cancellations. There is no phone, online, or app-based booking. Each reservation is fixed at 60 minutes, and members who want additional time must complete their session and re-enter the queue from scratch.
+          </SubPoint>
+          <SubPoint label="Why this matters">
+            The system works acceptably during off-peak hours (roughly 30-55% utilisation). The problems emerge exclusively during peak hours (7-11 AM and 4-8 PM), when courts reach 95-100% capacity. This reveals that the issue is not an absolute lack of capacity but a structural mismatch between how demand is distributed and how the system manages that distribution.
+          </SubPoint>
+          <ConnectionBox presentation="Slide 4 (Background)" essay="Background Information section" prototype="Header bar (21 Courts, 336 Slots/Day)"/>
+        </ExplainCard>
+
+        <ExplainCard icon="⚠️" title="The core inefficiencies" subtitle="What goes wrong during peak hours">
+          <SubPoint label="Informal queuing">
+            During peak hours, members who cannot get a court are informally told to wait. There is no structured queue — no numbering, no position tracking, no estimated wait time. Members stand near the desk hoping for a cancellation, with no certainty about whether they will play at all.
+          </SubPoint>
+          <SubPoint label="Repeated trips to the desk">
+            Because there is no real-time visibility of court status, members walk to the control desk repeatedly to check if anything has opened up. Each trip is unnecessary movement that adds no value to anyone — the member, the staff, or the system.
+          </SubPoint>
+          <SubPoint label="No-show waste">
+            There are zero penalties for members who book a court and don't show up. These empty courts sit idle until staff notices and informally reassigns them. There is no data on how often this happens because the system doesn't track it.
+          </SubPoint>
+          <SubPoint label="Inequitable access">
+            Some members finish playing, immediately walk back to the desk, and re-enter the queue — effectively monopolising court time during peak hours. Other members who arrived minutes later may not get to play at all. There is no mechanism to ensure fair distribution.
+          </SubPoint>
+          <SubPoint label="Staff overload">
+            The single control desk handles all booking requests, availability enquiries, informal waitlist management, and no-show reassignments manually during the busiest hours. This creates pressure, increases the likelihood of errors, and delivers inconsistent service.
+          </SubPoint>
+          <ConnectionBox presentation="Slides 5 (Problem Statement)" essay="Problem Statement section" prototype="Court grid (peak hours marked in gold)"/>
+        </ExplainCard>
+
+        {/* ═══ SECTION 2: 3M FRAMEWORK ═══ */}
+        <div id="framework">
+          <Section number="2" title="The 3M Framework" subtitle="How we diagnosed the problem using lean theory" color={C.gold}/>
+        </div>
+
+        <ExplainCard icon="🔄" title="Mura — Unevenness" subtitle="The root cause of all other problems" leanPrinciple="ROOT CAUSE" leanColor="gold">
+          <SubPoint label="Why the 3M framework works here">
+            The 3M framework provides a structured, systematic method for diagnosing operational problems. Rather than treating symptoms (long queues, frustrated members), it identifies the upstream root cause (demand unevenness) and traces how it creates downstream waste and overburden. This diagnostic power is one of lean's greatest strengths — it organises complex, interconnected problems into a clear causal chain.
+          </SubPoint>
+          <SubPoint label="What Mura means">
+            Mura refers to unevenness or inconsistency in demand, workload, or output. In manufacturing, it means production volume fluctuates unpredictably. At Club Irlandes, it means demand is heavily concentrated in two peak windows while the rest of the day is underutilised.
+          </SubPoint>
+          <SubPoint label="Why it's the root cause">
+            Liker (2004) argues that addressing Mura first typically reduces both Muda (waste) and Muri (overburden). This is because unevenness creates the conditions for waste: if demand were evenly distributed across the day, there would be no informal queuing, no repeated desk visits, and no staff overload. Mura is the upstream problem; Muda and Muri are its downstream symptoms.
+          </SubPoint>
+          <SubPoint label="Evidence at the club">
+            Peak hours (8 hours of the day) see 95-100% utilisation. Off-peak hours (8 hours) see 30-55%. The total daily capacity of 336 slots is more than sufficient — the gap between peak and off-peak utilisation is approximately 60-70 percentage points.
+          </SubPoint>
+          <ConnectionBox presentation="Slide 3 (3M cards), Slide 5 (chart)" essay="Introduction, Problem Statement" prototype="Dashboard: Utilisation Gap KPI"/>
+        </ExplainCard>
+
+        <ExplainCard icon="🗑️" title="Muda — Waste" subtitle="Non-value-adding activities in the system" leanPrinciple="7 WASTES" leanColor="red">
+          <SubPoint label="Waiting waste">
+            Members queue informally during peak hours with no certainty of getting a court. This time adds no value — the member is not playing, not being served, and not receiving information.
+          </SubPoint>
+          <SubPoint label="Movement waste">
+            Repeated trips to the control desk to check availability. Each trip consumes the member's time without producing any outcome. This is directly caused by the lack of real-time information visibility.
+          </SubPoint>
+          <SubPoint label="Information waste">
+            No real-time visibility of which courts are occupied, available, or about to open. Members cannot make informed decisions about whether to wait, leave, or return later. This information gap forces physical movement (the waste compounds).
+          </SubPoint>
+          <SubPoint label="Lost capacity">
+            No-shows leave courts empty until someone notices. Without tracking, the club doesn't even know how much capacity is being lost daily. This is productive capacity that was allocated but never used and never recovered.
+          </SubPoint>
+          <ConnectionBox presentation="Slide 5 (Muda panel)" essay="Problem Statement" prototype="Grid: no-show courts, Staff: No-Show Alerts"/>
+        </ExplainCard>
+
+        <ExplainCard icon="💪" title="Muri — Overburden" subtitle="Excessive strain on people and systems" leanPrinciple="OVERBURDEN" leanColor="blue">
+          <SubPoint label="Staff overburden">
+            During peak hours, the control desk staff must simultaneously manage bookings, answer availability questions, handle informal waitlists, reassign no-show courts, and deal with frustrated members. This volume exceeds what one person can handle reliably, leading to errors and inconsistent service.
+          </SubPoint>
+          <SubPoint label="System overburden">
+            The physical notebook system was designed for lower-volume, casual use. During peak hours, it's asked to function as a real-time scheduling system, a queue manager, and an availability display — roles it was never designed for.
+          </SubPoint>
+          <SubPoint label="Inequity as overburden">
+            When some members monopolise peak courts through immediate re-queuing, the system places unfair burden on other members who absorb the consequence: they cannot play despite being club owners who pay the same membership fees.
+          </SubPoint>
+          <ConnectionBox presentation="Slide 5 (Muri panel)" essay="Problem Statement" prototype="Staff view: status categories, walk-in management"/>
+        </ExplainCard>
+
+        {/* ═══ SECTION 3: SOLUTIONS ═══ */}
+        <div id="solutions">
+          <Section number="3" title="The Five Solutions" subtitle="Each improvement targets a specific waste" color={C.green}/>
+        </div>
+
+        <ExplainCard icon="📱" title="Solution 1: Digital Reservation Platform" subtitle="Replace the physical notebook with an app and website" leanPrinciple="Flow & Pull" leanColor="green">
+          <SubPoint label="What it does">
+            A mobile app and website where members can see real-time court availability and book slots from anywhere. Replaces the physical notebook with a digital system that both members and staff can access simultaneously.
+          </SubPoint>
+          <SubPoint label="Why it exists">
+            The physical notebook forces members to be physically present to get information (push system). The digital platform lets members pull information on demand — they check availability when they want, from wherever they are. This directly eliminates movement waste (walking to the desk) and waiting waste (standing in line for information). It also creates flow: bookings are processed instantly rather than queued through a single bottleneck (the desk).
+          </SubPoint>
+          <SubPoint label="Why it's the foundation">
+            This is the most important improvement because all other solutions depend on it. Without digital records, you cannot enforce no-show penalties (no proof of who showed up), track utilisation metrics (no data), implement waitlists (no notification channel), or offer off-peak incentives (no booking time data). The platform is not just a convenience tool — it's the infrastructure that makes a data-driven operation possible.
+          </SubPoint>
+          <ConnectionBox presentation="Slide 6, Row 1" essay="Results: first improvement" prototype="Member View: Court Availability tab"/>
+        </ExplainCard>
+
+        <ExplainCard icon="🌙" title="Solution 2: Off-Peak Incentives" subtitle="Nudge demand toward underutilised hours" leanPrinciple="Heijunka" leanColor="gold">
+          <SubPoint label="What it does">
+            Members who book off-peak hours earn priority credits. Accumulating 3 or more credits gives a 15-minute early booking window for the following week's peak slots. Additionally, off-peak slots open 48 hours in advance (vs 24 hours for peak), giving planners earlier access.
+          </SubPoint>
+          <SubPoint label="Why it exists">
+            This is a direct application of Heijunka — Toyota's demand levelling principle. The goal is not to force members to play at different times but to make off-peak hours marginally more attractive. If even 10-15% of peak demand shifts to off-peak, it significantly reduces congestion, shortens wait times, and improves utilisation of the 336 daily slots.
+          </SubPoint>
+          <SubPoint label="Why not just use pricing?">
+            As discussed in the SWOT analysis, demand at a tennis club is lifestyle-driven, not price-driven. Members play when their schedules allow, not when a discount tells them to. That's why we chose non-monetary incentives (priority access, earlier booking windows) rather than price discounts — they reward flexibility without penalising members who can only play during peak hours.
+          </SubPoint>
+          <SubPoint label="Why the specific numbers?">
+            <strong>3 credits for early access:</strong> achievable in one week of regular off-peak play, making it a realistic incentive rather than an unreachable target. <strong>15-minute window:</strong> meaningful enough to secure a peak slot but short enough that it doesn't lock out non-credit members entirely. <strong>48-hour vs 24-hour booking:</strong> the gap is large enough to feel like a real advantage but not so large that it creates new hoarding problems.
+          </SubPoint>
+          <ConnectionBox presentation="Slide 6, Row 2" essay="Results: second improvement" prototype="Booking modal: off-peak benefits section"/>
+        </ExplainCard>
+
+        <ExplainCard icon="❌" title="Solution 3: No-Show Penalty Policy" subtitle="Recover lost capacity through accountability" leanPrinciple="Standard Work" leanColor="green">
+          <SubPoint label="What it does">
+            Members must cancel at least 30 minutes before their slot. Missing this window or not showing up triggers a graduated penalty: 1st offence in 30 days = warning, 2nd = 24-hour booking suspension, 3rd = 72-hour suspension.
+          </SubPoint>
+          <SubPoint label="Why it exists">
+            This is Standard Work — establishing clear, documented, consistently enforced rules where none existed before. Currently, no-shows have zero consequences. Courts sit empty, staff scrambles to reassign, and the member who didn't show loses nothing. The policy creates accountability while keeping the club fair.
+          </SubPoint>
+          <SubPoint label="Why 30 minutes?">
+            30 minutes is the minimum time needed for the system to notify the next person on the waitlist, give them 5 minutes to confirm, and still have the court occupied close to the original start time. Shorter windows wouldn't leave enough time for reassignment; longer windows would feel punitive for legitimate last-minute cancellations.
+          </SubPoint>
+          <SubPoint label="Why graduated penalties?">
+            Club Irlandes is member-owned — the members are the club's owners. Imposing harsh penalties from the first offence would feel authoritarian and generate pushback. The graduated approach (warning → 24h → 72h) gives members a chance to adjust their behaviour, respects the ownership dynamic, and reserves meaningful consequences for repeat offenders. This design choice comes directly from the SWOT analysis of lean limitations at this club.
+          </SubPoint>
+          <ConnectionBox presentation="Slide 6, Row 3; Slide 8 (SWOT threats)" essay="Results: third improvement; Discussion" prototype="System Rules: cancellation & no-show section"/>
+        </ExplainCard>
+
+        <ExplainCard icon="1️⃣" title="Solution 4: Peak-Hour Booking Limit" subtitle="One reservation per member during peak hours" leanPrinciple="Muri → Equity" leanColor="blue">
+          <SubPoint label="What it does">
+            During peak hours (7-11 AM, 4-8 PM), each member can hold a maximum of one active reservation per day. Off-peak bookings remain unlimited.
+          </SubPoint>
+          <SubPoint label="Why it exists">
+            This directly addresses the inequity problem identified under Muri. Currently, some members finish playing and immediately re-queue, booking consecutive peak slots while others cannot get a single court. The limit distributes scarce peak capacity more fairly across the membership, functioning like a Takt Time calculation — available capacity divided by number of members who want to play.
+          </SubPoint>
+          <SubPoint label="Why only during peak hours?">
+            Off-peak hours have no capacity shortage (30-55% utilisation). Adding limits there would restrict members for no reason and reduce overall utilisation. The limit only activates where scarcity exists — peak hours — and leaves off-peak completely open, which also serves as an indirect incentive to play off-peak.
+          </SubPoint>
+          <SubPoint label="Why this is Phase 3">
+            This is the most restrictive change and the one most likely to generate member pushback. That's why the phased rollout places it last — by Phase 3, members will have experienced the benefits of the digital platform (Phase 1) and the no-show policy (Phase 2), building trust in the system before introducing a behavioural restriction.
+          </SubPoint>
+          <ConnectionBox presentation="Slide 6, Row 4; Slide 9 (Phase 3)" essay="Results: fourth improvement; Discussion" prototype="Booking modal: peak hour rules"/>
+        </ExplainCard>
+
+        <ExplainCard icon="📋" title="Solution 5: Visual Management Board" subtitle="Real-time court status display at the control desk" leanPrinciple="Visual Management" leanColor="green">
+          <SubPoint label="What it does">
+            A whiteboard (or screen) at the control desk showing which courts are currently occupied, available, or awaiting check-in. Colour-coded for instant readability.
+          </SubPoint>
+          <SubPoint label="Why it exists">
+            This is a direct lean Visual Management tool — the same principle behind Toyota's Andon boards on factory floors. Making system status visible at a glance reduces the number of members asking staff about availability (reducing both Muda movement and Muri staff overburden) and gives everyone the same information simultaneously.
+          </SubPoint>
+          <SubPoint label="Why it's a quick win">
+            A physical whiteboard can be implemented immediately with almost zero cost. It serves as a bridge solution while the digital platform is being developed and deployed. Even after the app launches, the desk display remains valuable for walk-in members and staff situational awareness.
+          </SubPoint>
+          <ConnectionBox presentation="Slide 6, Row 5; Slide 9 (Phase 1)" essay="Results: fifth improvement" prototype="Staff View: Whiteboard tab"/>
+        </ExplainCard>
+
+        {/* ═══ SECTION 4: PARAMETERS ═══ */}
+        <div id="parameters">
+          <Section number="4" title="System Parameters" subtitle="Every number has a reason" color={C.blue}/>
+        </div>
+
+        <ExplainCard icon="⏱️" title="Booking Window: 24 hours (peak)" subtitle="Why not 48 hours, or 1 week?" leanPrinciple="Mura Prevention" leanColor="gold">
+          <SubPoint label="The parameter">
+            Peak hour slots (7-11 AM, 4-8 PM) become bookable 24 hours in advance. A rolling window: tomorrow's 8 AM slot opens today at 8 AM.
+          </SubPoint>
+          <SubPoint label="Why 24 hours">
+            If the window were longer (e.g. one week), the same members would block the same slots every week — recreating the hoarding problem digitally instead of physically. A 24-hour window ensures that every day is a fresh start: all members have equal access to tomorrow's peak slots, regardless of who played yesterday. This directly prevents Mura (unevenness) from reappearing in a digital form.
+          </SubPoint>
+          <SubPoint label="Why not shorter (e.g. 2 hours)?">
+            Too short a window would create a rush every time slots open, replacing one form of queuing chaos with another. It would also prevent members from planning their day. 24 hours is long enough for planning but short enough to prevent monopolisation.
+          </SubPoint>
+          <ConnectionBox presentation="Slide 6 (Heijunka)" essay="Results" prototype="System Rules: booking windows; Grid: booking window info bar"/>
+        </ExplainCard>
+
+        <ExplainCard icon="🌙" title="Booking Window: 48 hours (off-peak)" subtitle="The Heijunka incentive built into timing" leanPrinciple="Heijunka" leanColor="gold">
+          <SubPoint label="The parameter">
+            Off-peak slots become bookable 48 hours in advance — double the peak window.
+          </SubPoint>
+          <SubPoint label="Why the gap matters">
+            The 24-hour difference between peak and off-peak booking windows is itself a Heijunka tool. Members who plan ahead and are flexible about when they play can secure their preferred court a day earlier by choosing off-peak. This doesn't force anyone to change — it rewards those who do. The incentive is structural (built into the system) rather than promotional (requiring marketing or communication).
+          </SubPoint>
+          <ConnectionBox presentation="Slide 6, Row 2" essay="Results" prototype="System Rules; Grid: off-peak info bar"/>
+        </ExplainCard>
+
+        <ExplainCard icon="✅" title="Check-in Window: 10 minutes" subtitle="The trigger for capacity recovery" leanPrinciple="Muda + Muri" leanColor="green">
+          <SubPoint label="The parameter">
+            Members must check in (via app or at the desk) within 10 minutes of their slot start time. If they don't, the court is automatically released to the waitlist.
+          </SubPoint>
+          <SubPoint label="Why 10 minutes">
+            10 minutes balances two competing needs. It's short enough to recover most of the 60-minute slot for the next player (83% of the hour remains), but long enough to accommodate minor delays (parking, changing clothes, arriving from another part of the club). It also gives the system enough time to notify the first waitlisted member and process their confirmation before significant court time is lost.
+          </SubPoint>
+          <SubPoint label="Why auto-release matters">
+            Currently, staff must notice a no-show, decide the member isn't coming, and manually find someone to fill the court. This manual process is slow and inconsistent (Muri on staff). Auto-release removes human judgement from the equation — the rule is clear, the system enforces it, and capacity is recovered without staff intervention (reducing both Muda and Muri).
+          </SubPoint>
+          <ConnectionBox presentation="Slide 6, Row 3" essay="Results" prototype="Staff view: ⏳ PENDING status; System Rules: check-in section"/>
+        </ExplainCard>
+
+        <ExplainCard icon="📲" title="Waitlist: 5-minute confirmation" subtitle="How released capacity flows to the next member" leanPrinciple="Pull + Flow" leanColor="green">
+          <SubPoint label="The parameter">
+            When a court opens (cancellation or no-show auto-release), the first waitlisted member receives a push notification and has 5 minutes to accept. If they don't respond, the offer passes to the next person in the queue.
+          </SubPoint>
+          <SubPoint label="Why 5 minutes">
+            Short enough to keep the court flowing to the next available player quickly (minimising idle time = Muda elimination). Long enough for the member to see the notification, decide, and confirm — especially since they might be at the club but not watching their phone constantly. If the window were too long (e.g. 30 minutes), the court would sit empty during the confirmation period.
+          </SubPoint>
+          <SubPoint label="Why this is a Pull System">
+            In the current system, members repeatedly walk to the desk to check for openings — that's a push mentality (the member is pushing for information). The waitlist inverts this: the member registers interest once, then the system pulls them in when capacity opens. This directly eliminates the movement waste of repeated desk trips.
+          </SubPoint>
+          <ConnectionBox presentation="Slide 6, Row 1 (Pull)" essay="Results" prototype="Waitlist modal (click any booked peak slot)"/>
+        </ExplainCard>
+
+        <ExplainCard icon="⚠️" title="Graduated Penalties" subtitle="Warning → 24h → 72h suspension" leanPrinciple="Standard Work" leanColor="green">
+          <SubPoint label="The escalation">
+            1st no-show in 30 days: warning notification. 2nd: 24-hour booking suspension. 3rd: 72-hour suspension. The counter resets after 30 days of clean behaviour.
+          </SubPoint>
+          <SubPoint label="Why graduated?">
+            This design reflects a key finding from our SWOT analysis: Club Irlandes is member-owned. Members are not just customers — they are the club's shareholders. Harsh penalties from the first offence (e.g., immediate suspension, financial fines) would feel disproportionate and authoritarian, likely generating organised pushback. The graduated approach gives everyone a chance to learn the new system, treats first-time mistakes with grace, but creates meaningful consequences for repeat behaviour.
+          </SubPoint>
+          <SubPoint label="Why 30-day reset?">
+            A rolling 30-day window means a single lapse doesn't permanently mark a member. It acknowledges that life happens — a forgotten booking once every few months is not the same pattern as chronic no-shows. This keeps the system firm but fair.
+          </SubPoint>
+          <ConnectionBox presentation="Slide 6 (Standard Work); Slide 8 (SWOT: member-owner dynamic)" essay="Results, Discussion" prototype="System Rules: no-show penalty section"/>
+        </ExplainCard>
+
+        <ExplainCard icon="🌟" title="Priority Credits: 3 credits → 15-minute window" subtitle="Making off-peak genuinely attractive" leanPrinciple="Heijunka" leanColor="gold">
+          <SubPoint label="The mechanism">
+            Each off-peak booking earns the member 1 priority credit. Accumulating 3 or more credits unlocks a 15-minute early booking window for the following week's peak slots (i.e., their peak slots open at 23h45 instead of 24h00).
+          </SubPoint>
+          <SubPoint label="Why 3 credits?">
+            Three off-peak sessions per week is achievable for a regular player, making the incentive realistic rather than aspirational. It's also enough to demonstrate a genuine shift in behaviour — one off-peak booking could be accidental, but three suggests a deliberate choice.
+          </SubPoint>
+          <SubPoint label="Why 15 minutes?">
+            A 15-minute head start is meaningful: for popular peak slots (e.g. Saturday 9 AM), being first in line virtually guarantees your court. But it's short enough that non-credit members still have a fair shot — by the time general booking opens, most slots will still be available.
+          </SubPoint>
+          <ConnectionBox presentation="Slide 6, Row 2 (Heijunka)" essay="Results" prototype="Booking modal: off-peak benefits; System Rules"/>
+        </ExplainCard>
+
+        {/* ═══ SECTION 5: INTERFACES ═══ */}
+        <div id="interfaces">
+          <Section number="5" title="Dual Interface Design" subtitle="One system, two views — and why walk-ins still work" color={C.green}/>
+        </div>
+
+        <ExplainCard icon="📱" title="Member Interface (App/Web)" subtitle="What members see and do" leanPrinciple="Muda → Movement" leanColor="green">
+          <SubPoint label="What it includes">
+            Real-time court availability grid (21 courts × 16 hours), one-tap booking, cancellation, waitlist joining, check-in button, booking history, and system rules reference.
+          </SubPoint>
+          <SubPoint label="Why it exists">
+            Every action that currently requires a physical trip to the control desk — checking availability, making a reservation, checking queue position, cancelling — can now be done from anywhere. This directly eliminates movement waste (Muda). The grid's colour coding (available, booked, released, past) gives members the same information visibility that the staff whiteboard provides, but accessible from their phone.
+          </SubPoint>
+          <ConnectionBox presentation="Slide 6, Row 1" essay="Results" prototype="Member View: Court Availability tab"/>
+        </ExplainCard>
+
+        <ExplainCard icon="🖥️" title="Staff Interface (Control Desk Panel)" subtitle="What staff sees and does" leanPrinciple="Visual Management" leanColor="green">
+          <SubPoint label="What it includes">
+            Live court map with 5 status categories (available, booked, checked in, pending check-in, no-show), walk-in booking form, no-show alerts with one-click reassignment, and the full dashboard with KPIs.
+          </SubPoint>
+          <SubPoint label="Why it's different from the member view">
+            Staff need operational data that members don't: who has checked in, who hasn't, which courts are about to auto-release, and how many walk-in requests are pending. The whiteboard display (7×3 court grid) is designed to be visible at a glance from across the desk area, functioning exactly like an Andon board on a factory floor.
+          </SubPoint>
+          <ConnectionBox presentation="Slide 6, Row 5 (Visual Management)" essay="Results" prototype="Staff View: Whiteboard tab"/>
+        </ExplainCard>
+
+        <ExplainCard icon="🚶" title="Walk-Ins: Preserved by Design" subtitle="Why the in-person option matters" leanPrinciple="Respect for People" leanColor="green">
+          <SubPoint label="Why keep walk-ins?">
+            Our SWOT analysis identified a key weakness of lean: it assumes process standardisation, but some members value the social interaction at the control desk. For them, chatting with the coach or receptionist is part of the club experience. Eliminating walk-ins to force app adoption would destroy value instead of creating it.
+          </SubPoint>
+          <SubPoint label="How it works">
+            Walk-in members approach the desk exactly as they do today. The only difference: staff enters their booking into the digital system instead of a notebook. The member gets the same experience; the system gets the same data. One source of truth, whether the booking came from an app or a conversation.
+          </SubPoint>
+          <SubPoint label="The lean principle">
+            Toyota's "Respect for People" principle recognises that processes should serve people, not the other way around. Forcing every member through a digital-only channel would prioritise system efficiency over human experience — the opposite of what lean intends.
+          </SubPoint>
+          <ConnectionBox presentation="Slide 8 (SWOT: Weaknesses — social value of desk)" essay="Discussion" prototype="Staff View: Walk-in Booking section"/>
+        </ExplainCard>
+
+        {/* ═══ SECTION 6: METRICS ═══ */}
+        <div id="metrics">
+          <Section number="6" title="Performance Metrics" subtitle="How we measure whether improvements are working" color={C.blue}/>
+        </div>
+
+        <ExplainCard icon="📈" title="Court Utilisation Gap" subtitle="Target: < 30% gap between peak and off-peak" leanPrinciple="Mura Indicator" leanColor="gold">
+          <SubPoint label="What it measures">
+            The difference between average peak-hour utilisation and average off-peak utilisation. Currently estimated at ~60-70%.
+          </SubPoint>
+          <SubPoint label="Why this metric">
+            This is the single most important indicator of whether the Heijunka interventions (off-peak incentives, booking windows) are working. If Mura is the root cause, then reducing the utilisation gap is the primary measure of success. A gap below 30% would indicate demand is significantly more evenly distributed.
+          </SubPoint>
+          <ConnectionBox presentation="Slide 7 (Metrics table, Row 1); Slide 5 (chart)" essay="Results: Metrics" prototype="Dashboard: first KPI card"/>
+        </ExplainCard>
+
+        <ExplainCard icon="⏳" title="Average Wait Time (peak)" subtitle="Target: < 5 minutes" leanPrinciple="Muda Indicator" leanColor="red">
+          <SubPoint label="What it measures">
+            Average time a member spends between arriving at the club (or opening the app) and confirming a court booking during peak hours. Currently estimated at 15-30 minutes.
+          </SubPoint>
+          <SubPoint label="Why this target">
+            With digital booking, the actual reservation process takes seconds. The remaining wait time reflects either slot unavailability (solved by demand levelling) or waitlist time (solved by auto-notifications). A sub-5-minute target means nearly instant booking for most members.
+          </SubPoint>
+          <ConnectionBox presentation="Slide 7, Row 2" essay="Results: Metrics" prototype="Dashboard: KPI table"/>
+        </ExplainCard>
+
+        <ExplainCard icon="🚫" title="No-Show Rate" subtitle="Target: reduce by 50%" leanPrinciple="Muda Indicator" leanColor="red">
+          <SubPoint label="What it measures">
+            Percentage of booked slots where the member did not check in and did not cancel. Currently untracked.
+          </SubPoint>
+          <SubPoint label="Why 50% reduction">
+            The graduated penalty system won't eliminate no-shows entirely (emergencies happen), but it should dramatically reduce casual no-shows — members who book "just in case" and don't bother cancelling. Industry benchmarks for reservation systems with cancellation policies suggest 40-60% reduction in no-shows is achievable.
+          </SubPoint>
+          <ConnectionBox presentation="Slide 7, Row 3" essay="Results: Metrics" prototype="Dashboard: KPI table; Staff: No-Show Alerts"/>
+        </ExplainCard>
+
+        <ExplainCard icon="😊" title="Member Satisfaction" subtitle="Target: > 8/10 average survey score" leanPrinciple="Customer Value" leanColor="green">
+          <SubPoint label="What it measures">
+            Periodic survey asking members to rate their reservation experience on a 1-10 scale. Currently not measured.
+          </SubPoint>
+          <SubPoint label="Why it matters">
+            Lean defines value from the customer's perspective. All operational improvements are worthless if members don't perceive an improvement in their experience. This metric prevents the club from optimising system efficiency at the expense of member satisfaction — a real risk identified in the SWOT analysis.
+          </SubPoint>
+          <ConnectionBox presentation="Slide 7, Row 4" essay="Results: Metrics" prototype="Dashboard: KPI table"/>
+        </ExplainCard>
+
+        <ExplainCard icon="🙋" title="Staff Interventions per Hour" subtitle="Target: reduce by 60%" leanPrinciple="Muri Indicator" leanColor="blue">
+          <SubPoint label="What it measures">
+            Number of times staff must respond to member queries at the control desk during peak hours. Currently high and untracked.
+          </SubPoint>
+          <SubPoint label="Why it matters">
+            This measures Muri (overburden) on staff directly. If the digital platform and whiteboard are working, most availability questions answer themselves — members check the app or the board instead of asking staff. A 60% reduction means staff can focus on walk-in bookings and member service rather than fielding repetitive queries.
+          </SubPoint>
+          <ConnectionBox presentation="Slide 7, Row 5" essay="Results: Metrics" prototype="Dashboard: KPI table"/>
+        </ExplainCard>
+
+        {/* ═══ SECTION 7: IMPLEMENTATION ═══ */}
+        <div id="implementation">
+          <Section number="7" title="Phased Implementation" subtitle="Kaizen: incremental improvement, not big-bang transformation" color={C.dark}/>
+        </div>
+
+        <ExplainCard icon="🟢" title="Phase 1: Enable Visibility (Months 1-2)" subtitle="Deploy tools that help everyone, restrict nobody" leanPrinciple="LOW RISK" leanColor="green" defaultOpen={true}>
+          <SubPoint label="What happens">
+            Deploy the digital reservation platform (app + web) and install the visual management whiteboard at the control desk. Begin collecting data on utilisation, no-shows, and booking patterns.
+          </SubPoint>
+          <SubPoint label="Why first">
+            This phase only adds capabilities — it takes nothing away from any member. Anyone who doesn't want to use the app can still book at the desk. The whiteboard benefits everyone immediately. Most importantly, the platform starts generating data that is essential for enforcing and evaluating every subsequent change. Risk: minimal. Pushback potential: near zero.
+          </SubPoint>
+          <ConnectionBox presentation="Slide 9 (Phase 1)" essay="Discussion: phased rollout" prototype="Both views, System Rules"/>
+        </ExplainCard>
+
+        <ExplainCard icon="🟡" title="Phase 2: Introduce Policies (Months 3-4)" subtitle="New rules backed by data" leanPrinciple="MEDIUM RISK" leanColor="gold">
+          <SubPoint label="What happens">
+            Activate the no-show penalty policy, launch off-peak incentives (priority credits, earlier booking window), and train staff on consistent enforcement.
+          </SubPoint>
+          <SubPoint label="Why second">
+            By this point, the club has 2 months of booking data. The no-show policy can be justified with actual numbers ("we had X empty courts last month due to no-shows"). Off-peak incentives can be tuned based on observed patterns. Staff has had time to learn the digital system before being asked to enforce new rules. Risk: moderate — some members will resist penalties, but the data provides objective justification.
+          </SubPoint>
+          <ConnectionBox presentation="Slide 9 (Phase 2)" essay="Discussion" prototype="Booking modal: rules display"/>
+        </ExplainCard>
+
+        <ExplainCard icon="🔴" title="Phase 3: Optimise Access (Month 5+)" subtitle="The most sensitive change, saved for last" leanPrinciple="HIGHER RISK" leanColor="red">
+          <SubPoint label="What happens">
+            Implement the peak-hour booking limit (one reservation per member during peak hours). Review all metrics and adjust parameters. Conduct the first member satisfaction survey.
+          </SubPoint>
+          <SubPoint label="Why last">
+            This is the only change that explicitly restricts what members can do. It limits peak booking to one slot per day — members who currently play 2-3 consecutive peak hours will resist. By Phase 3, the system has established trust: members have seen wait times drop (Phase 1), no-show courts recovered (Phase 2), and demand start to level (Phase 2 incentives). Introducing the booking limit now builds on demonstrated success rather than asking for blind trust.
+          </SubPoint>
+          <SubPoint label="The Kaizen philosophy">
+            This entire phased approach reflects Kaizen — continuous, incremental improvement. Each phase builds on the previous one, feedback loops inform adjustments, and the most disruptive changes come only after the foundation is stable. This is the opposite of a "big-bang" rollout where everything changes on day one, which lean theory identifies as high-risk (Womack and Jones, 2003).
+          </SubPoint>
+          <ConnectionBox presentation="Slide 9 (Phase 3); Slide 10 (Conclusion)" essay="Discussion: phased rollout; Conclusion" prototype="System Rules: peak limit; Dashboard: kaizen note"/>
+        </ExplainCard>
+
+        {/* FOOTER */}
+        <div style={{marginTop:48,borderTop:`1px solid ${C.brd}`,paddingTop:24,textAlign:"center"}}>
+          <div style={{fontSize:14,fontWeight:600,color:C.tx,marginBottom:6}}>
+            Lean transformation depends not only on process redesign, but also on cultural acceptance.
+          </div>
+          <div style={{fontSize:12,color:C.txL}}>
+            Club Irlandes de Raqueta · Lean Manufacturing Case Study · Universidad Panamericana · May 2026
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(React.createElement(AppComponent));
+  </script>
+</body>
+</html>

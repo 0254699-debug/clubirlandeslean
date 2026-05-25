@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Club Irlandes de Raqueta — Lean Case Study</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'DM Sans', 'Segoe UI', sans-serif; background: #F5F7FA; min-height: 100vh; }
+    .header { background: #16192C; padding: 48px 24px; text-align: center; }
+    .header-label { font-size: 12px; color: #E8A838; font-weight: 600; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 12px; }
+    .header-title { font-size: 36px; font-weight: 700; color: white; margin-bottom: 8px; }
+    .header-subtitle { font-size: 16px; color: #0D6B4E; font-weight: 500; margin-bottom: 16px; }
+    .header-meta { font-size: 13px; color: #718096; }
+    .content { max-width: 800px; margin: -40px auto 60px; padding: 0 20px; }
+    .card { background: white; border-radius: 16px; border: 1px solid #E2E8F0; padding: 32px; margin-bottom: 20px; text-decoration: none; display: block; transition: transform 0.2s, box-shadow 0.2s; cursor: pointer; }
+    .card:hover { transform: translateY(-3px); box-shadow: 0 12px 40px rgba(0,0,0,0.1); }
+    .card-icon { font-size: 40px; margin-bottom: 16px; }
+    .card-title { font-size: 20px; font-weight: 700; color: #1C1E2D; margin-bottom: 6px; }
+    .card-desc { font-size: 14px; color: #4A5568; line-height: 1.6; margin-bottom: 16px; }
+    .card-badge { display: inline-block; padding: 4px 14px; border-radius: 8px; font-size: 12px; font-weight: 600; }
+    .badge-green { background: #E8F5E9; color: #0D6B4E; }
+    .badge-blue { background: #EBF4FF; color: #2C5282; }
+    .card-link { font-size: 13px; font-weight: 600; color: #0D6B4E; }
+    .footer { text-align: center; padding: 24px; font-size: 13px; color: #718096; }
+    .footer strong { color: #1C1E2D; }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div class="header-label">Lean Manufacturing · Live Case Study</div>
+    <div class="header-title">Club Irlandes de Raqueta</div>
+    <div class="header-subtitle">Optimising Court Reservation Operations Through the 3M Framework</div>
+    <div class="header-meta">Pablo Romano · Emilio Aquino · Nicolas Crane · Universidad Panamericana · May 2026</div>
+  </div>
+
+  <div class="content">
+
+    <a class="card" href="prototype.html">
+      <div class="card-icon">🎾</div>
+      <div class="card-title">Digital Reservation System — Prototype</div>
+      <div class="card-desc">
+        Interactive working prototype of the proposed digital reservation platform. Includes the member booking interface (court availability grid, real-time booking, waitlist), the staff control panel (visual management whiteboard, walk-in bookings, no-show alerts), and the analytics dashboard with all five performance KPIs.
+      </div>
+      <span class="card-badge badge-green">Interactive Prototype</span>
+      <span style="margin-left: 8px; font-size: 12px; color: #718096;">Member View · Staff View · Dashboard</span>
+      <div style="margin-top: 12px;" class="card-link">Open Prototype →</div>
+    </a>
+
+    <a class="card" href="rationale.html">
+      <div class="card-icon">📖</div>
+      <div class="card-title">Design Rationale — Every Decision Explained</div>
+      <div class="card-desc">
+        Comprehensive documentation explaining every feature, parameter, and design decision behind the proposed system. Each element is expandable and traces back to a specific lean principle, a rubric requirement, and the corresponding section in the essay and presentation. Nothing is arbitrary — every number has a reason.
+      </div>
+      <span class="card-badge badge-blue">27 Explanations</span>
+      <span style="margin-left: 8px; font-size: 12px; color: #718096;">7 Sections · All Parameters Justified</span>
+      <div style="margin-top: 12px;" class="card-link">Open Design Rationale →</div>
+    </a>
+
+  </div>
+
+  <div class="footer">
+    <strong>Lean transformation depends not only on process redesign, but also on cultural acceptance.</strong>
+    <div style="margin-top: 8px;">Manufactura Esbelta · Prof. Sofía López-Bago García-Teruel · Universidad Panamericana</div>
+  </div>
+
+</body>
+</html>
