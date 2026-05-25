@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Club Irlandes — Digital Reservation System</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'DM Sans', 'Segoe UI', sans-serif; }
+    #root { min-height: 100vh; }
+    .loading { display: flex; align-items: center; justify-content: center; height: 100vh; background: #F5F7FA; }
+    .loading-text { font-size: 16px; color: #718096; }
+  </style>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div id="root"><div class="loading"><div class="loading-text">Loading Reservation System...</div></div></div>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script type="text/babel" data-type="module">
+const { useState, useMemo, useCallback } = React;
+/* ═══════════════════════════════════════════
+   MOCK DATA GENERATOR
+   ═══════════════════════════════════════════ */
+const MEMBERS = [
+  "A. Martínez","R. González","C. López","M. Hernández","J. Díaz","P. García",
+  "L. Rodríguez","S. Torres","D. Ramírez","F. Flores","E. Morales","H. Castillo",
+  "I. Vargas","K. Mendoza","N. Reyes","O. Jiménez","T. Sánchez","V. Rojas",
+];
+function genData() {
+  const courts = Array.from({length:21},(_,i)=>({
+    id:i+1, name:`Court ${i+1}`, type: i<14?"Hard":i<18?"Clay":"Grass"
+  }));
+  const hours = Array.from({length:16},(_,i)=>({
+    hour:i+6, label:`${(i+6)>12?(i+6)-12:(i+6)}:00 ${(i+6)>=12?"PM":"AM"}`
+  }));
+  const slots = {};
+  courts.forEach(c => hours.forEach(({hour})=>{
+    // Courts 12-21 are reserved for tennis lessons from 4-8 PM
+    const isLesson = c.id >= 12 && hour >= 16 && hour <= 19;
+    if (isLesson) {
+      slots[`${c.id}-${hour}`] = {
+        courtId:c.id, hour, status:"lesson", member:null, checkedIn:false, waitlist:[]
+      };
+      return;
+    }
+    const isPeak = (hour>=7&&hour<=10)||(hour>=16&&hour<=19);
+    // Afternoon peak: only 11 courts available → even higher effective demand
+    const occupancy = isPeak ? (hour>=16 ? 0.96 : 0.93) : 0.32;
+    const booked = Math.random() < occupancy;
+    const noShow = booked && Math.random() < 0.07;
+    slots[`${c.id}-${hour}`] = {
+      courtId:c.id, hour,
+      status: booked ? (noShow?"no-show":"booked") : "available",
+      member: booked ? MEMBERS[Math.floor(Math.random()*MEMBERS.length)] : null,
+      checkedIn: booked && !noShow && Math.random() > 0.15,
+      waitlist: isPeak && !booked ? [] : (isPeak && booked ? [MEMBERS[Math.floor(Math.random()*MEMBERS.length)]] : []),
+    };
+  }));
+  return {courts, hours, slots};
+}
+const D = genData();
+const isPeak = h => (h>=7&&h<=10)||(h>=16&&h<=19);
+const isLessonCourt = (courtId, hour) => courtId >= 12 && hour >= 16 && hour <= 19;
+const availableCourts = h => (h >= 16 && h <= 19) ? 11 : 21;
+
+/* ═══════════════════════════════════════════
+   DESIGN TOKENS
+   ═══════════════════════════════════════════ */
+const C = {
+  dark:"#16192C", green:"#0D6B4E", greenL:"#E8F5E9", greenM:"#A7D7C5",
+  gold:"#E8A838", goldL:"#FFF8E7", red:"#C0392B", redL:"#FFF5F5",
+  blue:"#2C5282", blueL:"#EBF4FF", white:"#FFF", light:"#F5F7FA",
+  tx:"#1C1E2D", txM:"#4A5568", txL:"#718096", brd:"#E2E8F0",
+};
+
+/* ═══════════════════════════════════════════
+   SHARED COMPONENTS
+   ═══════════════════════════════════════════ */
+const Badge = ({children,color="green"}) => {
+  const m = {green:{b:C.greenL,c:C.green},gold:{b:C.goldL,c:C.gold},red:{b:C.redL,c:C.red},blue:{b:C.blueL,c:C.blue}};
+  const s = m[color]||m.green;
+  return <span style={{background:s.b,color:s.c,padding:"2px 10px",borderRadius:12,fontSize:11,fontWeight:600}}>{children}</span>;
+};
+
+const Card = ({children,style={}}) => (
+  <div style={{background:C.white,borderRadius:10,border:`1px solid ${C.brd}`,padding:16,...style}}>{children}</div>
+);
+
+const RuleRow = ({icon,title,detail,lean}) => (
+  <div style={{display:"flex",gap:12,padding:"12px 0",borderBottom:`1px solid ${C.brd}22`}}>
+    <div style={{fontSize:20,width:32,textAlign:"center",flexShrink:0}}>{icon}</div>
+    <div style={{flex:1}}>
+      <div style={{fontSize:13,fontWeight:600,color:C.tx}}>{title}</div>
+      <div style={{fontSize:12,color:C.txM,marginTop:2}}>{detail}</div>
+    </div>
+    <div style={{flexShrink:0,alignSelf:"center"}}><Badge color="green">{lean}</Badge></div>
+  </div>
+);
+
+/* ═══════════════════════════════════════════
+   SYSTEM RULES PANEL
+   ═══════════════════════════════════════════ */
+function SystemRules() {
+  return (
+    <div>
+      <div style={{fontSize:13,color:C.txL,marginBottom:16,fontStyle:"italic"}}>
+        Every parameter is designed to eliminate a specific waste identified in our lean analysis. Nothing is arbitrary.
+      </div>
+
+      <Card style={{marginBottom:16}}>
+        <div style={{fontSize:14,fontWeight:700,color:C.tx,marginBottom:4}}>Booking Windows</div>
+        <div style={{fontSize:11,color:C.txL,marginBottom:12}}>When members can reserve courts</div>
+        <RuleRow icon="⏱️"
+          title="Peak hours: 24-hour rolling window"
+          detail="Members can book peak slots (7–11 AM, 4–8 PM) up to 24 hours in advance. Slots open at the same time each day, giving all members equal access. Prevents hoarding of prime slots days in advance."
+          lean="Mura → Levelling" />
+        <RuleRow icon="🌙"
+          title="Off-peak hours: 48-hour rolling window"
+          detail="Off-peak slots open 48 hours in advance. Members who plan ahead are rewarded with earlier access to these times. Each off-peak booking earns 1 priority credit; collecting 3 or more credits unlocks a 15-minute early booking window for the following week's peak slots."
+          lean="Heijunka" />
+        <RuleRow icon="1️⃣"
+          title="Peak limit: 1 reservation per member per day"
+          detail="During peak hours, each member can hold a maximum of one active reservation per day. Unlimited off-peak bookings. Ensures scarce peak capacity is distributed equitably across the membership, reducing overburden (Muri) on both staff and the system."
+          lean="Muri → Equity" />
+      </Card>
+
+      <Card style={{marginBottom:16}}>
+        <div style={{fontSize:14,fontWeight:700,color:C.tx,marginBottom:4}}>Court Allocation: Tennis Lessons</div>
+        <div style={{fontSize:11,color:C.txL,marginBottom:12}}>Dedicated capacity for the club's coaching programme</div>
+        <RuleRow icon="🎓"
+          title="Courts 12-21 reserved for lessons: 4-8 PM daily"
+          detail="10 of the 21 courts are allocated to the club's tennis coaching programme every afternoon from 4:00 to 8:00 PM. This reduces available member booking capacity during the afternoon peak from 21 courts to 11 courts. Total daily member slots: 296 (336 minus 40 lesson slots). This makes the afternoon peak structurally more constrained than the morning peak, reinforcing the importance of demand levelling."
+          lean="Dedicated Capacity" />
+      </Card>
+
+      <Card style={{marginBottom:16}}>
+        <div style={{fontSize:14,fontWeight:700,color:C.tx,marginBottom:4}}>Cancellation & No-Show Policy</div>
+        <div style={{fontSize:11,color:C.txL,marginBottom:12}}>Standard rules to recover lost capacity</div>
+        <RuleRow icon="❌"
+          title="30-minute cancellation window"
+          detail="Members must cancel at least 30 minutes before their slot start time. Cancellations within this window count as no-shows. This gives the system enough time to notify waitlisted members and reassign the court."
+          lean="Standard Work" />
+        <RuleRow icon="⚠️"
+          title="Graduated no-show penalty"
+          detail="1st no-show in 30 days: warning notification. 2nd no-show in 30 days: 24-hour booking suspension. 3rd: 72-hour suspension. Graduated penalties respect the member-owner dynamic while enforcing accountability."
+          lean="Standard Work" />
+        <RuleRow icon="✅"
+          title="10-minute check-in window"
+          detail="Members must check in (via app or at the desk) within 10 minutes of their slot start. If not checked in, the court auto-releases to the next person on the waitlist. Recovers capacity that would otherwise sit idle and eliminates the need for staff to manually track and reassign courts (reducing both Muda and Muri)."
+          lean="Muda + Muri" />
+      </Card>
+
+      <Card style={{marginBottom:16}}>
+        <div style={{fontSize:14,fontWeight:700,color:C.tx,marginBottom:4}}>Waitlist System</div>
+        <div style={{fontSize:11,color:C.txL,marginBottom:12}}>Pull-based queue to eliminate movement waste</div>
+        <RuleRow icon="📲"
+          title="Digital waitlist with auto-notification"
+          detail="When a peak slot is full, members can join a waitlist with one tap. If a cancellation or no-show releases a court, the first waitlisted member receives a push notification and has 5 minutes to confirm. No more walking to the desk to ask."
+          lean="Pull System" />
+        <RuleRow icon="🔔"
+          title="5-minute confirmation window"
+          detail="Waitlisted members get 5 minutes to accept a released slot. If they don't respond, the offer passes to the next person in the queue. Ensures released capacity is recovered quickly without staff intervention."
+          lean="Flow" />
+      </Card>
+
+      <Card>
+        <div style={{fontSize:14,fontWeight:700,color:C.tx,marginBottom:4}}>Dual Interface</div>
+        <div style={{fontSize:11,color:C.txL,marginBottom:12}}>One system, two views — Standard Work principle</div>
+        <RuleRow icon="📱"
+          title="Member app (phone/web)"
+          detail="Members see real-time availability, book courts, cancel reservations, join waitlists, and check in — all from their phone. Eliminates the need to physically go to the control desk to check availability or make a reservation."
+          lean="Muda → Movement" />
+        <RuleRow icon="🖥️"
+          title="Staff panel (control desk)"
+          detail="Staff see the same availability grid plus: a live whiteboard display for the current hour, walk-in booking capability for members who prefer in-person, check-in management, and no-show alerts. One source of truth for both interfaces."
+          lean="Visual Mgmt" />
+        <RuleRow icon="🚶"
+          title="Walk-ins still work"
+          detail="Members who prefer the in-person experience can still walk to the desk. Staff enters their booking into the same system. The difference: now the process is tracked, fair, and visible. The social interaction is preserved; the chaos is not."
+          lean="Respect for People" />
+      </Card>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════
+   MEMBER VIEW: AVAILABILITY GRID
+   ═══════════════════════════════════════════ */
+function MemberGrid({onBook}) {
+  const [filter, setFilter] = useState("all");
+  const [hoverSlot, setHoverSlot] = useState(null);
+  const filtered = D.courts.filter(c => filter==="all" || c.type.toLowerCase()===filter);
+  const now = 9; // simulated current hour
+
+  return (
+    <div>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14,flexWrap:"wrap"}}>
+        <span style={{fontSize:12,color:C.txL,fontWeight:500}}>Filter:</span>
+        {["all","hard","clay","grass"].map(f=>(
+          <button key={f} onClick={()=>setFilter(f)} style={{
+            padding:"4px 12px",borderRadius:6,border:`1px solid ${filter===f?C.green:C.brd}`,
+            background:filter===f?C.greenL:C.white,color:filter===f?C.green:C.txM,
+            fontSize:11,fontWeight:500,cursor:"pointer",textTransform:"capitalize",
+          }}>{f==="all"?"All (21)":f}</button>
+        ))}
+        <div style={{marginLeft:"auto",display:"flex",gap:14,fontSize:10,color:C.txL}}>
+          <span style={{display:"flex",alignItems:"center",gap:3}}><span style={{width:9,height:9,borderRadius:2,background:C.greenL,border:`1px solid ${C.greenM}`}}/> Available</span>
+          <span style={{display:"flex",alignItems:"center",gap:3}}><span style={{width:9,height:9,borderRadius:2,background:C.green}}/> Booked</span>
+          <span style={{display:"flex",alignItems:"center",gap:3}}><span style={{width:9,height:9,borderRadius:2,background:"#F8D7DA",border:"1px solid #e88"}}/> Released (No-Show)</span>
+          <span style={{display:"flex",alignItems:"center",gap:3}}><span style={{width:9,height:9,borderRadius:2,background:"#D6BCFA",border:"1px solid #9F7AEA"}}/> Lesson</span>
+          <span style={{display:"flex",alignItems:"center",gap:3}}><span style={{width:9,height:9,borderRadius:2,background:C.brd}}/> Past</span>
+        </div>
+      </div>
+
+      {/* Booking window info */}
+      <div style={{display:"flex",gap:10,marginBottom:10}}>
+        <div style={{flex:1,background:C.goldL,borderRadius:8,padding:"8px 12px",display:"flex",alignItems:"center",gap:8}}>
+          <span style={{fontSize:14}}>⏱️</span>
+          <span style={{fontSize:11,color:C.txM}}>
+            <strong style={{color:"#B8860B"}}>Peak slots</strong> — bookable up to 24h in advance · Max 1 per day
+          </span>
+        </div>
+        <div style={{flex:1,background:C.greenL,borderRadius:8,padding:"8px 12px",display:"flex",alignItems:"center",gap:8}}>
+          <span style={{fontSize:14}}>🌟</span>
+          <span style={{fontSize:11,color:C.txM}}>
+            <strong style={{color:C.green}}>Off-peak slots</strong> — bookable up to 48h in advance · Unlimited · Priority credits
+          </span>
+        </div>
+      </div>
+      <div style={{background:"#F3E8FF",borderRadius:8,padding:"8px 12px",marginBottom:14,display:"flex",alignItems:"center",gap:8}}>
+        <span style={{fontSize:14}}>🎓</span>
+        <span style={{fontSize:11,color:C.txM}}>
+          <strong style={{color:"#6B21A8"}}>Tennis lessons 4-8 PM:</strong> Courts 12-21 reserved for coaching programmes · 11 courts available for member bookings during afternoon peak
+        </span>
+      </div>
+
+      <div style={{overflowX:"auto",borderRadius:8,border:`1px solid ${C.brd}`}}>
+        <table style={{borderCollapse:"collapse",width:"100%",minWidth:880}}>
+          <thead>
+            <tr>
+              <th style={{position:"sticky",left:0,zIndex:2,background:C.dark,color:C.white,padding:"7px 10px",fontSize:10,fontWeight:600,textAlign:"left",minWidth:82}}>Court</th>
+              {D.hours.map(h=>{
+                const peak = isPeak(h.hour);
+                const past = h.hour < now;
+                return (
+                  <th key={h.hour} style={{
+                    background:past?"#2a2d42":C.dark, color:past?"#555":C.white,
+                    padding:"6px 3px",fontSize:9,fontWeight:500,textAlign:"center",minWidth:50,
+                    borderBottom:peak?`2px solid ${C.gold}`:`2px solid transparent`,
+                    opacity:past?0.5:1,
+                  }}>
+                    {h.label}
+                    {peak && !past && <div style={{fontSize:8,color:C.gold,marginTop:1}}>PEAK</div>}
+                    {past && <div style={{fontSize:8,color:"#666",marginTop:1}}>PAST</div>}
+                  </th>
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((court,ci)=>(
+              <tr key={court.id}>
+                <td style={{
+                  position:"sticky",left:0,zIndex:1,background:ci%2===0?C.white:C.light,
+                  padding:"5px 8px",fontSize:11,fontWeight:600,color:C.tx,borderRight:`1px solid ${C.brd}`,
+                }}>
+                  {court.name}
+                  <span style={{fontSize:8,color:C.txL,display:"block",fontWeight:400}}>{court.type}</span>
+                </td>
+                {D.hours.map(h=>{
+                  const slot = D.slots[`${court.id}-${h.hour}`];
+                  const past = h.hour < now;
+                  const isLessonSlot = slot.status==="lesson";
+                  const canBook = (slot.status==="available" || slot.status==="no-show") && !past;
+                  const bg = isLessonSlot ? "#F3E8FF"
+                    : past ? "#f0f0f0"
+                    : slot.status==="available" ? C.greenL
+                    : slot.status==="no-show" ? "#F8D7DA"
+                    : ci%2===0 ? "#d4edda" : "#c3e6cb";
+                  const isBookedPeak = slot.status==="booked" && isPeak(h.hour) && !past;
+                  return (
+                    <td key={h.hour}
+                      onClick={()=> canBook ? onBook(court,h,slot.status==="no-show") : isBookedPeak ? onBook(court,h,false,true) : null}
+                      onMouseEnter={()=> (canBook||isBookedPeak) && setHoverSlot(`${court.id}-${h.hour}`)}
+                      onMouseLeave={()=>setHoverSlot(null)}
+                      style={{
+                        background: hoverSlot===`${court.id}-${h.hour}` ? "#fffde7" : bg,
+                        padding:"3px 2px",textAlign:"center",fontSize:9,
+                        cursor:(canBook||isBookedPeak)?"pointer":"default",
+                        borderRight:`1px solid ${C.brd}15`,borderBottom:`1px solid ${C.brd}33`,
+                        color: isLessonSlot?"#7C3AED" : past?"#bbb" : slot.status==="available"?C.green : slot.status==="no-show"?C.red : C.txM,
+                        fontWeight: (slot.status==="available"||slot.status==="no-show"||isLessonSlot)?700:400, opacity:past?0.5:(isLessonSlot?0.8:1),
+                      }}
+                      title={isLessonSlot?"Reserved for tennis lessons" : canBook ? (slot.status==="no-show"?"No-show — click to claim":"Click to book") : isBookedPeak?"Click to join waitlist" : slot.member||""}
+                    >
+                      {isLessonSlot ? "LESSON" : past ? "—" : slot.status==="available"?"OPEN" : slot.status==="no-show"?"FREE" : slot.member?.split(" ")[0]||"—"}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p style={{fontSize:10,color:C.txL,marginTop:6,fontStyle:"italic"}}>
+        Simulated view at 9:00 AM. Click OPEN to book, FREE to claim a released no-show court, or any booked peak slot to join the waitlist.
+      </p>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════
+   BOOKING MODAL (with full rules)
+   ═══════════════════════════════════════════ */
+function BookingModal({court,hour,onConfirm,onCancel,isReclaim,isWaitlist}) {
+  const peak = isPeak(hour.hour);
+  const endHour = hour.hour+1;
+  const endLabel = `${endHour>12?endHour-12:endHour}:00 ${endHour>=12?"PM":"AM"}`;
+
+  if (isWaitlist) {
+    return (
+      <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100}} onClick={onCancel}>
+        <div onClick={e=>e.stopPropagation()} style={{background:C.white,borderRadius:14,padding:24,width:400,maxWidth:"92vw",boxShadow:"0 20px 60px rgba(0,0,0,0.25)"}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+            <div style={{width:38,height:38,borderRadius:10,background:C.blueL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>📋</div>
+            <div>
+              <div style={{fontSize:17,fontWeight:700,color:C.tx}}>Join Waitlist</div>
+              <div style={{fontSize:11,color:C.txL}}>This slot is currently booked</div>
+            </div>
+          </div>
+          <div style={{background:C.light,borderRadius:8,padding:14,marginBottom:14}}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
+              <span style={{fontSize:12,color:C.txL}}>Court</span>
+              <span style={{fontSize:12,fontWeight:600,color:C.tx}}>{court.name}</span>
+            </div>
+            <div style={{display:"flex",justifyContent:"space-between"}}>
+              <span style={{fontSize:12,color:C.txL}}>Time</span>
+              <span style={{fontSize:12,fontWeight:600,color:C.tx}}>{hour.label}</span>
+            </div>
+          </div>
+          <div style={{background:C.blueL,borderRadius:8,padding:12,marginBottom:14}}>
+            <div style={{fontSize:12,fontWeight:600,color:C.blue,marginBottom:4}}>📲 How the waitlist works</div>
+            <div style={{fontSize:11,color:C.txM,lineHeight:1.5}}>
+              • If this court opens (cancellation or no-show), you get a <strong>push notification</strong><br/>
+              • You have <strong>5 minutes</strong> to accept before it passes to the next person<br/>
+              • No need to check the desk — the system notifies you automatically
+            </div>
+          </div>
+          <div style={{background:C.greenL,borderRadius:8,padding:10,marginBottom:14,fontSize:11,color:C.green}}>
+            <strong>Why this matters:</strong> This replaces the informal first-come-first-served queuing at the control desk. Instead of walking back repeatedly to check availability (Muda: movement), you join the queue digitally and get pulled in when capacity opens (Pull System).
+          </div>
+          <div style={{display:"flex",gap:10}}>
+            <button onClick={onCancel} style={{flex:1,padding:"10px 0",borderRadius:8,border:`1px solid ${C.brd}`,background:C.white,color:C.txM,fontSize:13,fontWeight:500,cursor:"pointer"}}>Cancel</button>
+            <button onClick={onConfirm} style={{flex:1,padding:"10px 0",borderRadius:8,border:"none",background:C.blue,color:C.white,fontSize:13,fontWeight:600,cursor:"pointer"}}>Join Waitlist</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100}} onClick={onCancel}>
+      <div onClick={e=>e.stopPropagation()} style={{background:C.white,borderRadius:14,padding:24,width:400,maxWidth:"92vw",boxShadow:"0 20px 60px rgba(0,0,0,0.25)"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+          <div style={{width:38,height:38,borderRadius:10,background:isReclaim?C.redL:C.greenL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>🎾</div>
+          <div>
+            <div style={{fontSize:17,fontWeight:700,color:C.tx}}>{isReclaim ? "Claim Released Court" : "Confirm Reservation"}</div>
+            <div style={{fontSize:11,color:C.txL}}>{isReclaim ? "This court was released due to a no-show" : "Club Irlandes de Raqueta"}</div>
+          </div>
+        </div>
+
+        <div style={{background:C.light,borderRadius:8,padding:14,marginBottom:14}}>
+          {[
+            ["Court", `${court.name} (${court.type})`],
+            ["Time", `${hour.label} — ${endLabel}`],
+            ["Duration", "60 minutes"],
+            ["Period", null],
+          ].map(([k,v],i) => (
+            <div key={i} style={{display:"flex",justifyContent:"space-between",marginBottom:i<3?6:0,alignItems:"center"}}>
+              <span style={{fontSize:12,color:C.txL}}>{k}</span>
+              {v ? <span style={{fontSize:12,fontWeight:600,color:C.tx}}>{v}</span>
+                 : <span>{peak ? <Badge color="gold">Peak Hour</Badge> : <Badge color="green">Off-Peak ★</Badge>}</span>}
+            </div>
+          ))}
+        </div>
+
+        {isReclaim && (
+          <div style={{background:C.redL,borderRadius:8,padding:12,marginBottom:14}}>
+            <div style={{fontSize:12,fontWeight:600,color:C.red,marginBottom:4}}>🔄 No-Show Recovery</div>
+            <div style={{fontSize:11,color:C.txM,lineHeight:1.5}}>
+              The original member did not check in within 10 minutes. This court has been <strong>automatically released</strong> and is now available for immediate booking. Same rules apply.
+            </div>
+          </div>
+        )}
+
+        {/* Contextual rules shown at booking time */}
+        <div style={{background: peak ? C.goldL : C.greenL, borderRadius:8, padding:12, marginBottom:14}}>
+          {peak ? (
+            <div>
+              <div style={{fontSize:12,fontWeight:600,color:"#B8860B",marginBottom:4}}>⚠️ Peak Hour Rules Apply</div>
+              <div style={{fontSize:11,color:C.txM,lineHeight:1.5}}>
+                • This counts as your <strong>1 peak reservation</strong> for today<br/>
+                • Cancel at least <strong>30 min before</strong> or it counts as a no-show<br/>
+                • Check in within <strong>10 min of start</strong> or the court auto-releases
+              </div>
+            </div>
+          ) : (
+            <div>
+              <div style={{fontSize:12,fontWeight:600,color:C.green,marginBottom:4}}>🌟 Off-Peak Benefits</div>
+              <div style={{fontSize:11,color:C.txM,lineHeight:1.5}}>
+                • Earn <strong>1 priority credit</strong> — collect 3+ for early access to next week's peak slots<br/>
+                • <strong>No daily limit</strong> — book as many off-peak slots as you want<br/>
+                • Same cancellation policy: 30 min advance notice
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div style={{display:"flex",gap:10}}>
+          <button onClick={onCancel} style={{flex:1,padding:"10px 0",borderRadius:8,border:`1px solid ${C.brd}`,background:C.white,color:C.txM,fontSize:13,fontWeight:500,cursor:"pointer"}}>Cancel</button>
+          <button onClick={onConfirm} style={{flex:1,padding:"10px 0",borderRadius:8,border:"none",background:C.green,color:C.white,fontSize:13,fontWeight:600,cursor:"pointer"}}>{isReclaim ? "Claim Court" : "Confirm Booking"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════
+   STAFF VIEW: WHITEBOARD
+   ═══════════════════════════════════════════ */
+function StaffWhiteboard() {
+  const currentHour = 9;
+  const stats = useMemo(() => {
+    let a=0,b=0,n=0,ci=0;
+    D.courts.forEach(c => {
+      const s = D.slots[`${c.id}-${currentHour}`];
+      if(s.status==="lesson") return; // exclude lesson courts
+      if(s.status==="available") a++;
+      else if(s.status==="no-show") n++;
+      else { b++; if(s.checkedIn) ci++; }
+    });
+    const lessonCount = D.courts.filter(c => D.slots[`${c.id}-${currentHour}`].status==="lesson").length;
+    return {available:a,booked:b,noShow:n,checkedIn:ci,notCheckedIn:b-ci,lessons:lessonCount};
+  },[]);
+
+  return (
+    <div>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+        <div style={{width:10,height:10,borderRadius:"50%",background:"#22c55e"}}/>
+        <span style={{fontSize:15,fontWeight:700,color:C.tx}}>Control Desk Display</span>
+        <Badge color="gold">9:00 AM — Peak Hour</Badge>
+        <div style={{marginLeft:"auto",fontSize:11,color:C.txL}}>🖥️ Staff Panel</div>
+      </div>
+
+      {/* Stats row */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(5, 1fr)",gap:10,marginBottom:16}}>
+        {[
+          {label:"Available",value:stats.available,color:C.green,bg:C.greenL},
+          {label:"Booked",value:stats.booked,color:C.tx,bg:C.light},
+          {label:"Checked In",value:stats.checkedIn,color:C.blue,bg:C.blueL},
+          {label:"Not Checked In",value:stats.notCheckedIn,color:C.gold,bg:C.goldL},
+          {label:"No-Show",value:stats.noShow,color:C.red,bg:C.redL},
+        ].map((s,i)=>(
+          <div key={i} style={{background:s.bg,borderRadius:8,padding:"10px 8px",textAlign:"center"}}>
+            <div style={{fontSize:24,fontWeight:700,color:s.color}}>{s.value}</div>
+            <div style={{fontSize:9,color:C.txL,fontWeight:500}}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Court map grid */}
+      <Card>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+          <div style={{fontSize:13,fontWeight:600,color:C.tx}}>Court Map — Live Status</div>
+          <div style={{fontSize:10,color:C.txL}}>Auto-refreshes every 30 seconds</div>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(7, 1fr)",gap:8}}>
+          {D.courts.map(court => {
+            const slot = D.slots[`${court.id}-${currentHour}`];
+            const isLesson = slot.status==="lesson";
+            const isAvail = slot.status==="available";
+            const isNoShow = slot.status==="no-show";
+            const notChecked = slot.status==="booked" && !slot.checkedIn;
+            const bg = isLesson ? "#F3E8FF" : isAvail ? C.greenL : isNoShow ? C.redL : notChecked ? C.goldL : C.light;
+            const border = isLesson ? "#9F7AEA" : isAvail ? C.green : isNoShow ? C.red : notChecked ? C.gold : C.brd;
+            return (
+              <div key={court.id} style={{
+                background:bg, border:`2px solid ${border}`, borderRadius:8,
+                padding:"8px 4px", textAlign:"center",
+              }}>
+                <div style={{fontSize:14,fontWeight:700,color:C.tx}}>{court.id}</div>
+                <div style={{fontSize:8,color:C.txL,marginBottom:3}}>{court.type}</div>
+                <div style={{
+                  fontSize:9,fontWeight:600,
+                  color: isLesson?"#7C3AED" : isAvail?C.green : isNoShow?C.red : notChecked?"#B8860B" : C.txM,
+                }}>
+                  {isLesson ? "🎓 LESSON" : isAvail ? "OPEN" : isNoShow ? "NO-SHOW" : notChecked ? "⏳ PENDING" : `✓ ${slot.member?.split(" ")[0]}`}
+                </div>
+                {isNoShow && <div style={{fontSize:8,color:C.red,marginTop:2}}>→ Reassign</div>}
+                {notChecked && <div style={{fontSize:8,color:"#B8860B",marginTop:2}}>Check-in due</div>}
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+
+      {/* Walk-in section */}
+      <Card style={{marginTop:14}}>
+        <div style={{fontSize:13,fontWeight:600,color:C.tx,marginBottom:8}}>🚶 Walk-In Booking</div>
+        <div style={{fontSize:11,color:C.txM,marginBottom:12}}>
+          For members who prefer booking in person. Enter their reservation into the same system — one source of truth.
+        </div>
+        <div style={{display:"flex",gap:10,alignItems:"center"}}>
+          <div style={{flex:1,padding:"8px 12px",borderRadius:6,border:`1px solid ${C.brd}`,fontSize:12,color:C.txL}}>Member name...</div>
+          <div style={{padding:"8px 12px",borderRadius:6,border:`1px solid ${C.brd}`,fontSize:12,color:C.txL}}>Court</div>
+          <div style={{padding:"8px 12px",borderRadius:6,border:`1px solid ${C.brd}`,fontSize:12,color:C.txL}}>Hour</div>
+          <button style={{padding:"8px 16px",borderRadius:6,border:"none",background:C.green,color:C.white,fontSize:12,fontWeight:600,cursor:"pointer"}}>Book</button>
+        </div>
+        <div style={{fontSize:10,color:C.txL,marginTop:6,fontStyle:"italic"}}>
+          Walk-in bookings follow the same rules (peak limit, cancellation policy). The system enforces consistency.
+        </div>
+      </Card>
+
+      {/* No-show alerts */}
+      <Card style={{marginTop:14}}>
+        <div style={{fontSize:13,fontWeight:600,color:C.red,marginBottom:8}}>⚠️ No-Show Alerts</div>
+        <div style={{fontSize:11,color:C.txM,marginBottom:10}}>
+          Courts not checked into within 10 minutes of slot start. Auto-released to waitlist.
+        </div>
+        {D.courts.filter(c=>D.slots[`${c.id}-${currentHour}`].status==="no-show").map(c=>{
+          const slot = D.slots[`${c.id}-${currentHour}`];
+          return (
+            <div key={c.id} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 0",borderBottom:`1px solid ${C.brd}22`}}>
+              <Badge color="red">Court {c.id}</Badge>
+              <span style={{fontSize:11,color:C.txM}}>{slot.member} — did not check in</span>
+              <span style={{marginLeft:"auto",fontSize:10,color:C.green,fontWeight:600,cursor:"pointer"}}>Reassign →</span>
+            </div>
+          );
+        })}
+        {D.courts.filter(c=>D.slots[`${c.id}-${currentHour}`].status==="no-show").length===0 && (
+          <div style={{fontSize:11,color:C.txL,fontStyle:"italic"}}>No active no-show alerts.</div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════
+   DASHBOARD
+   ═══════════════════════════════════════════ */
+function Dashboard() {
+  const hourly = useMemo(() => D.hours.map(h => {
+    let a=0,b=0,n=0,lessons=0;
+    D.courts.forEach(c => {
+      const s = D.slots[`${c.id}-${h.hour}`];
+      if(s.status==="lesson") lessons++;
+      else if(s.status==="available") a++;
+      else if(s.status==="no-show") n++;
+      else b++;
+    });
+    const avail = 21 - lessons;
+    return {...h, a, b, n, lessons, avail, util: avail > 0 ? Math.round(((b+n)/avail)*100) : 0};
+  }),[]);
+
+  const memberTotal = 296; // 336 - 40 lesson slots
+  const booked = hourly.reduce((s,h)=>s+h.b,0);
+  const noShow = hourly.reduce((s,h)=>s+h.n,0);
+  const peakH = hourly.filter(h=>isPeak(h.hour));
+  const offH = hourly.filter(h=>!isPeak(h.hour));
+  const peakU = Math.round(peakH.reduce((s,h)=>s+h.util,0)/peakH.length);
+  const offU = Math.round(offH.reduce((s,h)=>s+h.util,0)/offH.length);
+  const gap = peakU - offU;
+  const overU = Math.round(((booked+noShow)/memberTotal)*100);
+
+  return (
+    <div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:16}}>
+        {[
+          {l:"Overall Utilisation",v:`${overU}%`,s:`${booked+noShow}/${memberTotal} member slots`,c:C.green},
+          {l:"Peak Utilisation",v:`${peakU}%`,s:"7-11 AM, 4-8 PM",c:C.gold},
+          {l:"Off-Peak Utilisation",v:`${offU}%`,s:"Remaining hours",c:C.blue},
+          {l:"Utilisation Gap",v:`${gap}%`,s:gap>30?"Target: < 30%":"✓ Within target",c:gap>30?C.red:C.green},
+        ].map((k,i)=>(
+          <Card key={i} style={{padding:"14px 12px"}}>
+            <div style={{fontSize:10,color:C.txL,fontWeight:500,marginBottom:2}}>{k.l}</div>
+            <div style={{fontSize:24,fontWeight:700,color:k.c}}>{k.v}</div>
+            <div style={{fontSize:9,color:C.txL}}>{k.s}</div>
+          </Card>
+        ))}
+      </div>
+
+      <Card style={{marginBottom:14}}>
+        <div style={{fontSize:13,fontWeight:600,color:C.tx,marginBottom:14}}>Hourly Utilisation</div>
+        <div style={{display:"flex",alignItems:"flex-end",gap:3,height:140}}>
+          {hourly.map((h,i)=>(
+            <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center"}}>
+              <div style={{fontSize:9,color:C.txL,marginBottom:3}}>{h.util}%</div>
+              <div style={{width:"100%",maxWidth:34,height:`${h.util*1.2}px`,
+                background:isPeak(h.hour)?C.green:C.greenM, borderRadius:"3px 3px 0 0",
+              }}/>
+              <div style={{fontSize:8,color:C.txL,marginTop:3}}>{h.hour>12?h.hour-12:h.hour}{h.hour>=12?"p":"a"}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{display:"flex",justifyContent:"center",gap:16,marginTop:10,fontSize:9,color:C.txL}}>
+          <span style={{display:"flex",alignItems:"center",gap:3}}><span style={{width:8,height:8,borderRadius:2,background:C.green}}/> Peak</span>
+          <span style={{display:"flex",alignItems:"center",gap:3}}><span style={{width:8,height:8,borderRadius:2,background:C.greenM}}/> Off-Peak</span>
+        </div>
+      </Card>
+
+      <Card>
+        <div style={{fontSize:13,fontWeight:600,color:C.tx,marginBottom:10}}>KPI Tracking</div>
+        <table style={{width:"100%",borderCollapse:"collapse"}}>
+          <thead>
+            <tr style={{background:C.dark}}>
+              {["Metric","Current","Target","Status"].map(h=>(
+                <th key={h} style={{padding:"7px 10px",color:C.white,fontSize:10,fontWeight:600,textAlign:"left"}}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {[
+              {m:"Utilisation Gap",c:`${gap}%`,t:"< 30%",ok:gap<=30},
+              {m:"Avg Wait Time (peak)",c:"15-30 min",t:"< 5 min",ok:false},
+              {m:"No-Show Rate",c:`${noShow} today (${(booked+noShow)>0?Math.round(noShow/(booked+noShow)*100):0}%)`,t:"Reduce 50%",ok:false},
+              {m:"Member Satisfaction",c:"Not measured",t:"> 8/10",ok:false},
+              {m:"Staff Queries/hr",c:"High",t:"Reduce 60%",ok:false},
+            ].map((r,i)=>(
+              <tr key={i} style={{background:i%2===0?C.light:C.white}}>
+                <td style={{padding:"7px 10px",fontSize:11,fontWeight:600,color:C.tx}}>{r.m}</td>
+                <td style={{padding:"7px 10px",fontSize:11,color:C.red}}>{r.c}</td>
+                <td style={{padding:"7px 10px",fontSize:11,color:C.green,fontWeight:600}}>{r.t}</td>
+                <td style={{padding:"7px 10px"}}><Badge color={r.ok?"green":"gold"}>{r.ok?"On Track":"Needs Action"}</Badge></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Card>
+
+      <div style={{marginTop:14,background:C.greenL,borderRadius:8,padding:14,display:"flex",gap:10,alignItems:"flex-start"}}>
+        <span style={{fontSize:18}}>📊</span>
+        <div>
+          <div style={{fontSize:12,fontWeight:600,color:C.green}}>Kaizen: data-driven continuous improvement</div>
+          <div style={{fontSize:11,color:C.txM}}>
+            This dashboard tracks all five KPIs from the case study. Without the digital platform, most are currently unmeasured.
+            The system generates the data needed to evaluate lean interventions, adjust policies iteratively, and measure progress across the three phases.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════
+   MAIN APP
+   ═══════════════════════════════════════════ */
+const AppComponent = function App() {
+  const [mode, setMode] = useState("member");
+  const [tab, setTab] = useState("grid");
+  const [booking, setBooking] = useState(null);
+  const [toast, setToast] = useState(null);
+
+  const memberTabs = [
+    {id:"grid",label:"Court Availability",icon:"📅"},
+    {id:"rules",label:"System Rules",icon:"📖"},
+  ];
+  const staffTabs = [
+    {id:"whiteboard",label:"Whiteboard & Walk-Ins",icon:"🖥️"},
+    {id:"dashboard",label:"Dashboard",icon:"📊"},
+    {id:"rules",label:"System Rules",icon:"📖"},
+  ];
+  const tabs = mode==="member" ? memberTabs : staffTabs;
+
+  const handleModeChange = (m) => {
+    setMode(m);
+    setTab(m==="member"?"grid":"whiteboard");
+  };
+
+  return (
+    <div style={{fontFamily:"'DM Sans','Segoe UI',sans-serif",background:C.light,minHeight:"100vh"}}>
+      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+
+      {/* Header */}
+      <div style={{background:C.dark,padding:"14px 20px",display:"flex",alignItems:"center",gap:12}}>
+        <div style={{width:34,height:34,borderRadius:8,background:C.green,display:"flex",alignItems:"center",justifyContent:"center",fontSize:17}}>🎾</div>
+        <div style={{flex:1}}>
+          <div style={{fontSize:15,fontWeight:700,color:C.white}}>Club Irlandes de Raqueta</div>
+          <div style={{fontSize:10,color:C.txL}}>Digital Reservation System — Lean Prototype</div>
+        </div>
+
+        {/* Mode toggle */}
+        <div style={{display:"flex",borderRadius:8,overflow:"hidden",border:`1px solid ${C.green}44`}}>
+          {[{id:"member",label:"📱 Member",desc:"App View"},{id:"staff",label:"🖥️ Staff",desc:"Desk Panel"}].map(m=>(
+            <button key={m.id} onClick={()=>handleModeChange(m.id)} style={{
+              padding:"6px 16px",border:"none",cursor:"pointer",fontSize:11,fontWeight:mode===m.id?600:400,
+              background:mode===m.id?C.green:"transparent",color:mode===m.id?C.white:C.txL,
+            }}>{m.label}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Sub-tabs */}
+      <div style={{background:C.white,borderBottom:`1px solid ${C.brd}`,padding:"0 20px",display:"flex",gap:0}}>
+        {tabs.map(t=>(
+          <button key={t.id} onClick={()=>setTab(t.id)} style={{
+            padding:"10px 16px",border:"none",background:"none",cursor:"pointer",fontSize:12,
+            fontWeight:tab===t.id?600:400,color:tab===t.id?C.green:C.txL,
+            borderBottom:tab===t.id?`2px solid ${C.green}`:"2px solid transparent",
+            display:"flex",alignItems:"center",gap:5,
+          }}><span>{t.icon}</span>{t.label}</button>
+        ))}
+        <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:8,padding:"0 8px"}}>
+          <Badge color="green">21 Courts</Badge>
+          <Badge color="gold">296 Member Slots/Day</Badge>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div style={{padding:20,maxWidth:1100,margin:"0 auto"}}>
+        {tab==="grid" && <MemberGrid onBook={(c,h,isReclaim,isWaitlist)=>setBooking({court:c,hour:h,isReclaim:!!isReclaim,isWaitlist:!!isWaitlist})}/>}
+        {tab==="rules" && <SystemRules/>}
+        {tab==="whiteboard" && <StaffWhiteboard/>}
+        {tab==="dashboard" && <Dashboard/>}
+      </div>
+
+      {booking && <BookingModal court={booking.court} hour={booking.hour}
+        isReclaim={booking.isReclaim} isWaitlist={booking.isWaitlist}
+        onConfirm={()=>{setToast(booking.isWaitlist?`📋 Joined waitlist for ${booking.court.name} at ${booking.hour.label}`:`✓ Booked ${booking.court.name} at ${booking.hour.label}`);setBooking(null);setTimeout(()=>setToast(null),3000);}}
+        onCancel={()=>setBooking(null)}/>}
+
+      {toast && (
+        <div style={{position:"fixed",bottom:20,left:"50%",transform:"translateX(-50%)",background:C.green,color:C.white,padding:"10px 24px",borderRadius:10,fontSize:13,fontWeight:600,boxShadow:"0 8px 30px rgba(0,0,0,0.2)",zIndex:200}}>
+          {toast}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(React.createElement(AppComponent));
+  </script>
+</body>
+</html>
